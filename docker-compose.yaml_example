@@ -1,0 +1,13 @@
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - ARXIGNIS_API_URL=https://api.arxignis.com/v1
+      - ARXIGNIS_API_KEY=<ARXIGNIS_API_KEY>
+      - ARXIGNIS_CAPTCHA_SITE_KEY=<ARXIGNIS_CAPTCHA_SITE_KEY>
+      - ARXIGNIS_CAPTCHA_SECRET_KEY=<ARXIGNIS_CAPTCHA_SECRET_KEY>
+    ports:
+      - "8087:80"
+      - ./example/nginx.conf:/etc/nginx/nginx.conf:ro
