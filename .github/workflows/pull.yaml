@@ -1,12 +1,12 @@
-name: nginx release
+name: nginx pull
 
 on:
   pull_request:
       branches:
         - main
 jobs:
-  deploy:
-    name: nginx release
+  pull:
+    name: nginx pull
     runs-on: ubicloud-standard-8-ubuntu-2404
     steps:
       - name: Login to Github Packages
@@ -42,7 +42,7 @@ jobs:
         id: nginx
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/pigri/arxignis/nginx
+          images: ghcr.io/arxignis/nginx
           tags: |
             type=sha,format=short
             type=match,pattern=v(\d+\.\d+\.\d+),group=1

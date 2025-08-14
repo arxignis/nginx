@@ -28,6 +28,7 @@ ENV RESTY_LUAROCKS_VERSION="3.12.2"
 ENV RESTY_BALANCER_VERSION="0.05"
 ENV RESTY_GPG_URL="https://openresty.org/download/openresty-${RESTY_VERSION}.tar.gz.asc"
 ENV OPENTELEMETRY_CPP_CONTRIB_VERSION="0.1.1"
+ENV ARXIGNIS_VERSION="1.0-0"
 
 WORKDIR /tmp
 
@@ -276,10 +277,12 @@ ENV LUA_PATH="/usr/local/openresty/site/lualib/?.ljbc;/usr/local/openresty/site/
 
 ENV LUA_CPATH="/usr/local/openresty/site/lualib/?.so;/usr/local/openresty/lualib/?.so;./?.so;/usr/local/lib/lua/5.1/?.so;/usr/local/openresty/luajit/lib/lua/5.1/?.so;/usr/local/lib/lua/5.1/loadall.so;/usr/local/openresty/luajit/lib/lua/5.1/?.so"
 
-RUN apk --no-cache add git \
-    && luarocks install lua-resty-arxignis 1.0-0
-
 CMD ["/usr/local/openresty/nginx/sbin/nginx", "-g", "daemon off;"]
 
 # Use SIGQUIT instead of default SIGTERM to cleanly drain requests
 STOPSIGNAL SIGQUIT
+
+FROM openresty-builder AS runtime
+
+RUN apk --no-cache add git \
+    && luarocks install lua-resty-arxignis ${ARXIGNIS_VERSION}
