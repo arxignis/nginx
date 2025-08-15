@@ -28,7 +28,6 @@ ENV RESTY_LUAROCKS_VERSION="3.12.2"
 ENV RESTY_BALANCER_VERSION="0.05"
 ENV RESTY_GPG_URL="https://openresty.org/download/openresty-${RESTY_VERSION}.tar.gz.asc"
 ENV OPENTELEMETRY_CPP_CONTRIB_VERSION="0.1.1"
-ENV ARXIGNIS_VERSION="1.0-0"
 
 WORKDIR /tmp
 
@@ -283,6 +282,7 @@ CMD ["/usr/local/openresty/nginx/sbin/nginx", "-g", "daemon off;"]
 STOPSIGNAL SIGQUIT
 
 FROM openresty-builder AS runtime
+ENV ARXIGNIS_VERSION="1.0-1"
 
 RUN apk --no-cache add git \
     && luarocks install lua-resty-arxignis ${ARXIGNIS_VERSION}
