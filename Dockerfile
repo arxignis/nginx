@@ -282,7 +282,7 @@ CMD ["/usr/local/openresty/nginx/sbin/nginx", "-g", "daemon off;"]
 STOPSIGNAL SIGQUIT
 
 FROM openresty-builder AS runtime
-ENV ARXIGNIS_VERSION="1.0-1"
+ENV ARXIGNIS_VERSION="1.1-0"
 
 RUN apk --no-cache add git \
     && luarocks install lua-resty-arxignis ${ARXIGNIS_VERSION}
