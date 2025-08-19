@@ -8,6 +8,8 @@ services:
       - ARXIGNIS_API_KEY=<ARXIGNIS_API_KEY>
       - ARXIGNIS_CAPTCHA_SITE_KEY=<ARXIGNIS_CAPTCHA_SITE_KEY>
       - ARXIGNIS_CAPTCHA_SECRET_KEY=<ARXIGNIS_CAPTCHA_SECRET_KEY>
+      - ARXIGNIS_CAPTCHA_PROVIDER=<ARXIGNIS_CAPTCHA_PROVIDER>
+      - ARXIGNIS_MODE=block
     ports:
       - "8087:80"
       - ./example/nginx.conf:/etc/nginx/nginx.conf:ro
