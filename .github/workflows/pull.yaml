@@ -25,7 +25,7 @@ jobs:
           echo ${{ steps.platforms.outputs.matrix }}
 
       - name: Docker meta
-        id: nginx
+        id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY_IMAGE }}
