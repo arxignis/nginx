@@ -4,11 +4,70 @@ on:
   push:
     tags:
       - "v*.*.*"
+env:
+  REGISTRY_IMAGE: ghcr.io/arxignis/nginx
 jobs:
-  deploy:
-    name: nginx release
+  prepare:
     runs-on: ubicloud-standard-16-ubuntu-2404
+    outputs:
+      matrix: ${{ steps.platforms.outputs.matrix }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create matrix
+        id: platforms
+        run: |
+          echo "matrix=$(docker buildx bake image-all --print | jq -cr '.target."image-all".platforms')" >>${GITHUB_OUTPUT}
+
+      - name: Show matrix
+        run: |
+          echo ${{ steps.platforms.outputs.matrix }}
+
+      - name: Docker meta
+        id: nginx
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          tags: |
+            type=sha,format=short
+            type=match,pattern=v(\d+\.\d+\.\d+),group=1
+            type=match,pattern=v(\d+\.\d+),group=1
+            type=match,pattern=v(\d+),group=1
+            type=raw,value=latest
+
+      - name: Rename meta bake definition file
+        run: |
+          mv "${{ steps.meta.outputs.bake-file }}" "${{ runner.temp }}/bake-meta.json"
+
+      - name: Upload meta bake definition
+        uses: actions/upload-artifact@v4
+        with:
+          name: bake-meta
+          path: ${{ runner.temp }}/bake-meta.json
+          if-no-files-found: error
+          retention-days: 1
+
+  build:
+    runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubicloud-standard-16-arm-ubuntu-2404' || 'ubicloud-standard-16-ubuntu-2404' }}
+    needs:
+      - prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    steps:
+      - name: Prepare
+        run: |
+          platform=${{ matrix.platform }}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+
+      - name: Download meta bake definition
+        uses: actions/download-artifact@v4
+        with:
+          name: bake-meta
+          path: ${{ runner.temp }}
+
       - name: Login to Github Packages
         uses: docker/login-action@v3
         with:
@@ -17,47 +76,72 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up QEMU
-        id: qemu
         uses: docker/setup-qemu-action@v3
-        with:
-          image: tonistiigi/binfmt:latest
-          platforms: all
-
-      - name: 🏗 Setup repo
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          submodules: recursive
-
-      - name: Set up Docker Context for Buildx
-        run: docker context create builders
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          version: latest
-          endpoint: builders
-
-      - name: Docker meta
-        id: nginx
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/arxignis/nginx
-          tags: |
-            type=sha,format=short
-            type=match,pattern=v(\d+\.\d+\.\d+),group=1
-            type=match,pattern=v(\d+\.\d+),group=1
-            type=match,pattern=v(\d+),group=1
-            type=raw,value=latest
 
       - name: Build
-        uses: docker/build-push-action@v6
-        id: build-image
+        id: bake
+        uses: docker/bake-action@v6
         with:
-          context: .
-          platforms: linux/arm64,linux/amd64
-          push: true
-          tags: ${{ steps.nginx.outputs.tags }}
-          labels: ${{ steps.nginx.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          files: |
+            ./docker-bake.hcl
+            cwd://${{ runner.temp }}/bake-meta.json
+          targets: image
+          set: |
+            *.tags=${{ env.REGISTRY_IMAGE }}
+            *.platform=${{ matrix.platform }}
+            *.output=type=image,push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p ${{ runner.temp }}/digests
+          digest="${{ fromJSON(steps.bake.outputs.metadata).image['containerimage.digest'] }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    runs-on: ubicloud-standard-16-ubuntu-2404
+    needs:
+      - build
+    steps:
+      - name: Download meta bake definition
+        uses: actions/download-artifact@v4
+        with:
+          name: bake-meta
+          path: ${{ runner.temp }}
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Login to Github Packages
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create manifest list and push
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.target."docker-metadata-action".tags | map(select(startswith("${{ env.REGISTRY_IMAGE }}")) | "-t " + .) | join(" ")' ${{ runner.temp }}/bake-meta.json) \
+            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:$(jq -r '.target."docker-metadata-action".args.DOCKER_META_VERSION' ${{ runner.temp }}/bake-meta.json)
