@@ -292,7 +292,7 @@ CMD ["/usr/local/openresty/nginx/sbin/nginx", "-g", "daemon off;"]
 STOPSIGNAL SIGQUIT
 
 FROM openresty-builder AS runtime
-ENV ARXIGNIS_VERSION="1.5-0"
+ENV ARXIGNIS_VERSION="1.5-1"
 
 WORKDIR /etc/nginx
 
